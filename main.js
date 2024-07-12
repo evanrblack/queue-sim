@@ -24,10 +24,11 @@ let tenants = [];
 let jobs = [];
 let delayedJobs = [];
 let workers = [];
-let workersRunning = false;
 let semaphoreSize = 1;
 let tickSize = 300;
+let tickCount = 0;
 let id = 1;
+let running = false;
 
 const root = document.getElementById('root');
 
@@ -76,17 +77,7 @@ function addTenant() {
 }
 
 function addWorker() {
-    workers.push({ ticks: 0, running: workersRunning });
-}
-
-function unpauseWorkers() {
-    workersRunning = true;
-    workers.forEach(w => w.running = true);
-}
-
-function pauseWorkers() {
-    workersRunning = false;
-    workers.forEach(w => w.running = false);
+    workers.push({ ticks: 0 });
 }
 
 function newJob(color) {
@@ -105,12 +96,12 @@ function addJobsFromTenant(event) {
 
 function stripeJobs() {
     const jobsByTenant = [];
-    for (const form of document.querySelectorAll('data-tenant-form')) {
+    for (const form of document.querySelectorAll('[data-tenant-form]')) {
         const data = new FormData(form);
         const count = parseInt(data.get('count') || '0');
         const color = data.get('color');
         const newJobs = [];
-        for (let i = 0; i < 1; i++) {
+        for (let i = 0; i < count; i++) {
             newJobs.push(newJob(color));
         }
         jobsByTenant.push(newJobs);
@@ -120,6 +111,7 @@ function stripeJobs() {
     for (let i = 0; i < 100; i++) {
         for (const tenantJobs of jobsByTenant) {
             const job = tenantJobs[i];
+            console.log(job);
             if (job) {
                 jobsInBatch.push(job);
             }
@@ -137,19 +129,15 @@ function clearAll() {
     jobs = [];
     delayedJobs = [];
     workers.forEach((worker) => {
-        worker.running = false;
         worker.blocked = false;
         worker.ticks = 0;
         delete worker.job;
     });
 }
 
-setInterval(() => {
+function tick() {
+    tickCount += 1;
     for (const worker of workers) {
-        if (!worker.running) {
-            continue;
-        }
-
         if (worker.job && worker.blocked) {
             jobs.push(worker.job);
             delete worker.job;
@@ -165,19 +153,32 @@ setInterval(() => {
             worker.blocked = count > semaphoreSize;
         }
     }
+}
 
-    m.redraw();
-}, tickSize);
+let intervalId;
+function startSim() {
+    intervalId = setInterval(() => {
+        tick();
+        m.redraw();
+    }, tickSize);
+}
+
+function pauseSim() {
+    clearInterval(intervalId);
+    intervalId = undefined;
+}
 
 m.mount(root, {
   view() {
       return m('div',
+          m('div', tickCount),
           m('button', { type: 'button', onclick: addTenant }, 'Add Tenant'),
           m('button', { type: 'button', onclick: addWorker }, 'Add Worker'),
-          !workersRunning
-              ? m('button', { type: 'button', onclick: unpauseWorkers }, 'Unpause Workers')
-              : m('button', { type: 'button', onclick: pauseWorkers }, 'Pause Workers'),
+          !intervalId
+              ? m('button', { type: 'button', onclick: startSim }, 'Start Sim')
+              : m('button', { type: 'button', onclick: pauseSim }, 'Pause Sim'),
           m('button', { type: 'button', onclick: clearAll }, 'Clear All'),
+          m('button', { type: 'button', onclick: stripeJobs }, 'Stripe Jobs'),
           m('div', { style: 'margin-top: 1rem; display: flex; height: 64px;' }, tenants.map(tenant => m(TenantComponent, { tenant }))),
           m('div', { style: 'margin-top: 1rem; display: flex; height: 96px;' }, jobs.map(job => m(JobComponent, { job, key: job.id }))),
           m('div', { style: 'margin-top: 1rem; display: flex;' }, workers.map(worker => m(WorkerComponent, { worker }))),
