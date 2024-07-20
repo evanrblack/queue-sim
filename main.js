@@ -1,3 +1,4 @@
+// TODO: Add and configure failure rate, delay timing, job spawning
 let tenants = [];
 let jobs = [];
 let delayedJobs = [];
@@ -98,31 +99,40 @@ function addJobsFromTenant(event) {
 }
 
 function stripeJobs() {
-  const jobsByTenant = [];
-  for (const form of document.querySelectorAll('[data-tenant-form]')) {
-    const data = new FormData(form);
-    const count = parseInt(data.get('count') || '0');
-    const color = data.get('color');
-    const newJobs = [];
-    for (let i = 0; i < count; i++) {
-      newJobs.push(newJob(color));
+  const map = new Map();
+  for (const job of jobs) {
+    let group = map.get(job.color);
+    if (group) {
+      group.push(job);
+    } else {
+      map.set(job.color, [job]);
     }
-    jobsByTenant.push(newJobs);
   }
 
-  let jobsInBatch = [];
-  for (let i = 0; i < 100; i++) {
-    for (const tenantJobs of jobsByTenant) {
-      const job = tenantJobs[i];
+  const groups = [...map.values()];
+  jobs = [];
+  for (let i = 0; i < 1000; i++) {
+    let anyJobsLeft = false;
+    for (const group of groups) {
+      const job = group[i];
       if (job) {
-        jobsInBatch.push(job);
+        anyJobsLeft = true;
+        jobs.push(job);
       }
     }
-    if (jobsInBatch.length === 0) {
+    if (!anyJobsLeft) {
       break;
     }
-    jobs.push(...jobsInBatch);
-    jobsInBatch = [];
+  }
+}
+
+// Fisher-Yates, if I did it right?
+function shuffleJobs() {
+  for (let i = 0; i < jobs.length - 1; i++) {
+    const j = i + Math.floor(Math.random() * (jobs.length - i));
+    const temp = jobs[i];
+    jobs[i] = jobs[j];
+    jobs[j] = temp;
   }
 }
 
@@ -241,8 +251,9 @@ m.mount(root, {
       m('input', { id: 'random-delay', type: 'checkbox', onchange: setRandomDelay }),
       m('label', { for: 'random-delay' }, 'Random Delay'),
 
-      m('button', { type: 'button', onclick: clearAll }, 'Clear All'),
       m('button', { type: 'button', onclick: stripeJobs }, 'Stripe Jobs'),
+      m('button', { type: 'button', onclick: shuffleJobs }, 'Shuffle Jobs'),
+      m('button', { type: 'button', onclick: clearAll }, 'Clear All'),
       m('div', { style: 'margin-top: 1rem; display: flex; height: 64px;' }, tenants.map(tenant => m(TenantComponent, { tenant }))),
       m(DelayQueuesComponent, { delayedJobs }),
       m(QueueComponent, { jobs }),
