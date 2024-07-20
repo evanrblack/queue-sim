@@ -13,6 +13,10 @@ let requeueWhenBlocked = false;
 let requeueWithDelay = false;
 let randomDelay = false;
 
+let chartData = [[]];
+let chartElem;
+let chart;
+
 const root = document.getElementById('root');
 
 const TenantComponent = {
@@ -75,17 +79,48 @@ function sample(array) {
   return array[Math.floor(Math.random() * array.length)];
 }
 
-function addTenant() {
-  const color = '#'+(Math.random()*0xFFFFFF<<0).toString(16);
+function addTenant(color) {
+  color = '#'+(Math.random()*0xFFFFFF<<0).toString(16);
   tenants.push({ color });
+
+  chart.addSeries({
+    label: color,
+    stroke: color,
+    width: 1,
+  });
+  chartData.push(Array(tickCount).fill(null));
 }
 
 function addWorker() {
-  workers.push({ ticks: 0 });
+  workers.push({ ticks: 0, blocked: false });
 }
 
 function newJob(color) {
   return { id: id++, color, effort: 20 + Math.ceil(Math.random() * 20) };
+}
+
+function save() {
+  localStorage.saved = JSON.stringify({
+    tickCount,
+    tenants,
+    delayedJobs,
+    jobs,
+    workers,
+    chartData,
+  })
+}
+
+function load() {
+  const data = JSON.parse(localStorage.saved ?? '{}');
+  tickCount = data.tickCount ?? 0;
+  tenants = data.tenants ?? [];
+  delayedJobs = data.delayedJobs ?? [];
+  jobs = data.jobs ?? [];
+  workers = data.workers ?? [];
+  chartData = data.chartData ?? [[]];
+
+  chart.destroy();
+  prepareChart(document.getElementById('chart'));
 }
 
 function addJobsFromTenant(event) {
@@ -191,6 +226,28 @@ function tick() {
       }
     }
   }
+
+  const counts = new Map(tenants.map(tenant => [tenant.color, 0]));
+  const increment = (color) => counts.set(color, counts.get(color) + 1);
+  for (const delayedJob of delayedJobs) {
+    increment(delayedJob.job.color);
+  }
+  for (const job of jobs) {
+    increment(job.color);
+  }
+  for (const worker of workers) {
+    if (worker.job) {
+      increment(worker.job.color);
+    }
+  }
+
+  chartData[0].push(tickCount);
+  for (let i = 0; i < tenants.length; i++) {
+    const tenant = tenants[i];
+    const data = chartData[i + 1];
+    data.push(counts.get(tenant.color));
+  }
+  chart.setData(chartData);
 }
 
 function isEmpty() {
@@ -229,6 +286,27 @@ function setRandomDelay(event) {
   randomDelay = event.target.checked;
 }
 
+function prepareChart(elem) {
+  chart = new uPlot({
+    title: 'Jobs',
+    height: 400,
+    width: 800,
+    series: [{}, ...tenants.map(tenant => ({
+      label: tenant.color,
+      stroke: tenant.color,
+      width: 1,
+    }))],
+    scales: {
+      y: {
+        range: [0, null],
+      },
+      x: {
+        time: false,
+      }
+    },
+  }, chartData, elem);
+}
+
 m.mount(root, {
   view() {
     return m('div',
@@ -254,10 +332,13 @@ m.mount(root, {
       m('button', { type: 'button', onclick: stripeJobs }, 'Stripe Jobs'),
       m('button', { type: 'button', onclick: shuffleJobs }, 'Shuffle Jobs'),
       m('button', { type: 'button', onclick: clearAll }, 'Clear All'),
+      m('button', { type: 'button', onclick: save }, 'Save'),
+      m('button', { type: 'button', onclick: load }, 'Load'),
       m('div', { style: 'margin-top: 1rem; display: flex; height: 64px;' }, tenants.map(tenant => m(TenantComponent, { tenant }))),
       m(DelayQueuesComponent, { delayedJobs }),
       m(QueueComponent, { jobs }),
       m('div', { style: 'margin-top: 1rem; display: flex;' }, workers.map(worker => m(WorkerComponent, { worker }))),
+      m('#chart', { oncreate: (vnode) => prepareChart(vnode.dom) }),
     );
   }
 });
