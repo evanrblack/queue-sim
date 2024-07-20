@@ -339,6 +339,11 @@ m.mount(root, {
   view() {
     return m('div',
       m('div', tickCount),
+      m('div',
+        m('input', { type: 'range', min: 10, max: 500, value: tickSize, disabled: intervalId, oninput: (event) => {
+          tickSize = parseInt(event.target.value);
+        }}),
+      ),
       m('button', { type: 'button', onclick: addTenant }, 'Add Tenant'),
       m('button', { type: 'button', onclick: addWorker }, 'Add Worker'),
       !intervalId
