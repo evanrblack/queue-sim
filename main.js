@@ -13,7 +13,7 @@ let requeueWhenBlocked = false;
 let requeueWithDelay = false;
 let randomDelay = false;
 
-let chartData = [[], [], []];
+let chartData = [[0], [0], [0]];
 let chartElem;
 let chart;
 
@@ -88,11 +88,14 @@ function addTenant(color) {
     stroke: color,
     width: 1,
   });
+
   chartData.push(Array(tickCount).fill(null));
 }
 
 function addWorker() {
   workers.push({ ticks: 0, blocked: false });
+  chartData[1][tickCount] += 1;
+  chart.setData(chartData);
 }
 
 function newJob(color) {
@@ -117,7 +120,7 @@ function load() {
   delayedJobs = data.delayedJobs ?? [];
   jobs = data.jobs ?? [];
   workers = data.workers ?? [];
-  chartData = data.chartData ?? [[], [], []];
+  chartData = data.chartData ?? [[0], [0], [0]];
 
   chart.destroy();
   prepareChart(document.getElementById('chart'));
@@ -131,6 +134,13 @@ function addJobsFromTenant(event) {
   for (let i = 0; i < count; i++) {
     jobs.push(newJob(color));
   }
+
+  const offset = 3;
+  const tenantIndex = tenants.findIndex((t) => t.color === color);
+  const currentCount = chartData[tenantIndex + offset][tickCount] ?? 0;
+  chartData[tenantIndex + offset][tickCount] = currentCount + count;
+  console.log(chartData);
+  chart.setData(chartData);
 }
 
 function stripeJobs() {
