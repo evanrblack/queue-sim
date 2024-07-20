@@ -8,6 +8,8 @@ let tickCount = 0;
 let id = 1;
 let running = false;
 let stopWhenEmpty = false;
+let requeueWhenBlocked = false;
+let requeueWithDelay = false;
 let randomDelay = false;
 
 const root = document.getElementById('root');
@@ -59,9 +61,9 @@ const WorkerComponent = {
   view(vnode) {
     const { worker } = vnode.attrs;
     const { job, blocked } = worker;
-    return m('div', { style: 'width: 96px; height: 96px; display: flex; justify-content: center; align-items: center; border: 1px solid black;' },
-      job && m('div', { style: `opacity: ${blocked ? 0.3 : 1};` },
-        m('progress', { value: worker.ticks, max: job.effort, style: `width: 64px; height: 8px; background-color: ${blocked ? 'red' : 'auto'}` }),
+    return m('div', { style: `width: 96px; height: 96px; display: flex; justify-content: center; align-items: center; border: 1px solid black; background-color: ${blocked ? '#ffcccc' : job ? '#ccffcc' : ''}` },
+      job && m('div',
+        m('progress', { value: worker.ticks, max: job.effort, style: `width: 64px; height: 8px;` }),
         m(JobComponent, { job })
       ),
     );
@@ -82,7 +84,7 @@ function addWorker() {
 }
 
 function newJob(color) {
-  return { id: id++, color, effort: 10 + Math.ceil(Math.random() * 10) };
+  return { id: id++, color, effort: 20 + Math.ceil(Math.random() * 20) };
 }
 
 function addJobsFromTenant(event) {
@@ -147,19 +149,36 @@ function tick() {
   delayedJobs = delayedJobs.filter(dj => dj.ticks > 0);
 
   for (const worker of workers) {
-    if (worker.job && worker.blocked) {
-      delayedJobs.push({ ticks: randomDelay ? (Math.random() > 0.5 ? 100 : 50) : 10, job: worker.job });
-      delete worker.job;
+    if (!worker.job) {
+      if (jobs.length === 0) {
+        continue;
+      }
+
       worker.blocked = false;
-    } else if (worker.job && worker.ticks >= worker.job.effort) {
-      delete worker.job;
       worker.ticks = 0;
-    } else if (worker.job) {
-      worker.ticks += 1;
-    } else if (jobs.length) {
       worker.job = jobs.shift();
-      const count = workers.filter(w => !w.blocked && w.job?.color === worker.job.color).length;
-      worker.blocked = count > semaphoreSize;
+    }
+
+    const blockedBefore = worker.blocked;
+    const otherCount = workers.filter(w => w !== worker && !w.blocked && w.job?.color === worker.job.color).length;
+    worker.blocked = otherCount >= semaphoreSize;
+    if (worker.blocked && blockedBefore && requeueWhenBlocked) {
+      worker.blocked = false;
+      worker.ticks = 0;
+      if (requeueWithDelay) {
+        delayedJobs.push({ ticks: randomDelay ? (Math.random() > 0.5 ? 40 : 80) : 10, job: worker.job });
+      } else {
+        jobs.push(worker.job);
+      }
+      delete worker.job;
+    } else if (!worker.blocked) {
+      // Finish on same tick.
+      worker.ticks += 1;
+
+      if (worker.ticks >= worker.job.effort) {
+        worker.ticks = 0;
+        delete worker.job;
+      }
     }
   }
 }
@@ -188,6 +207,14 @@ function setStopWhenEmpty(event) {
   stopWhenEmpty = event.target.checked;
 }
 
+function setRequeueWhenBlocked(event) {
+  requeueWhenBlocked = event.target.checked;
+}
+
+function setRequeueWithDelay(event) {
+  requeueWithDelay = event.target.checked;
+}
+
 function setRandomDelay(event) {
   randomDelay = event.target.checked;
 }
@@ -201,10 +228,19 @@ m.mount(root, {
       !intervalId
         ? m('button', { type: 'button', onclick: startSim }, 'Start Sim')
         : m('button', { type: 'button', onclick: pauseSim }, 'Pause Sim'),
+
       m('input', { id: 'stop-when-empty', type: 'checkbox', onchange: setStopWhenEmpty }),
       m('label', { for: 'stop-when-empty' }, 'Stop When Empty'),
+
+      m('input', { id: 'requeue-when-blocked', type: 'checkbox', onchange: setRequeueWhenBlocked }),
+      m('label', { for: 'requeue-when-blocked' }, 'Requeue When Blocked'),
+
+      m('input', { id: 'requeue-with-delay', type: 'checkbox', onchange: setRequeueWithDelay }),
+      m('label', { for: 'requeue-with-delay' }, 'Requeue With Delay'),
+
       m('input', { id: 'random-delay', type: 'checkbox', onchange: setRandomDelay }),
       m('label', { for: 'random-delay' }, 'Random Delay'),
+
       m('button', { type: 'button', onclick: clearAll }, 'Clear All'),
       m('button', { type: 'button', onclick: stripeJobs }, 'Stripe Jobs'),
       m('div', { style: 'margin-top: 1rem; display: flex; height: 64px;' }, tenants.map(tenant => m(TenantComponent, { tenant }))),
