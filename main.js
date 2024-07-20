@@ -1,10 +1,10 @@
-// TODO: Add and configure failure rate, delay timing, job spawning
+// TODO: Add and configure failure rate, delay timing, job spawning, dynamic workers
 let tenants = [];
 let jobs = [];
 let delayedJobs = [];
 let workers = [];
 let semaphoreSize = 1;
-let tickSize = 100;
+let tickSize = 50;
 let tickCount = 0;
 let id = 1;
 let running = false;
@@ -13,7 +13,7 @@ let requeueWhenBlocked = false;
 let requeueWithDelay = false;
 let randomDelay = false;
 
-let chartData = [[]];
+let chartData = [[], [], []];
 let chartElem;
 let chart;
 
@@ -117,7 +117,7 @@ function load() {
   delayedJobs = data.delayedJobs ?? [];
   jobs = data.jobs ?? [];
   workers = data.workers ?? [];
-  chartData = data.chartData ?? [[]];
+  chartData = data.chartData ?? [[], [], []];
 
   chart.destroy();
   prepareChart(document.getElementById('chart'));
@@ -242,9 +242,12 @@ function tick() {
   }
 
   chartData[0].push(tickCount);
+  chartData[1].push(workers.length);
+  chartData[2].push(workers.filter(w => !w.blocked && w.job).length);
+  const offset = 3;
   for (let i = 0; i < tenants.length; i++) {
     const tenant = tenants[i];
-    const data = chartData[i + 1];
+    const data = chartData[i + offset];
     data.push(counts.get(tenant.color));
   }
   chart.setData(chartData);
@@ -291,11 +294,26 @@ function prepareChart(elem) {
     title: 'Jobs',
     height: 400,
     width: 800,
-    series: [{}, ...tenants.map(tenant => ({
-      label: tenant.color,
-      stroke: tenant.color,
-      width: 1,
-    }))],
+    series: [
+      {},
+      {label: 'Workers', dash: [10, 5], stroke: 'gray', fill: 'rgba(100, 100, 100, 0.3)', },
+      {label: 'Working', dash: [5, 2], stroke: 'green', fill: 'rgba(0, 255, 0, 0.3)'},
+      ...tenants.map(tenant => ({
+        label: tenant.color,
+        stroke: tenant.color,
+        width: 1,
+      })),
+    ],
+    axes: [
+      {
+        side: 2,
+        label: 'Tick',
+      },
+      {
+        side: 3,
+        label: 'Jobs',
+      },
+    ],
     scales: {
       y: {
         range: [0, null],
