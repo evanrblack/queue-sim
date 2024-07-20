@@ -8,7 +8,7 @@ let tickSize = 50;
 let tickCount = 0;
 let id = 1;
 let running = false;
-let stopWhenEmpty = false;
+let stopWhenEmpty = true;
 let requeueWhenBlocked = false;
 let requeueWithDelay = false;
 let randomDelay = false;
@@ -350,7 +350,7 @@ m.mount(root, {
         ? m('button', { type: 'button', onclick: startSim }, 'Start Sim')
         : m('button', { type: 'button', onclick: pauseSim }, 'Pause Sim'),
 
-      m('input', { id: 'stop-when-empty', type: 'checkbox', onchange: setStopWhenEmpty }),
+      m('input', { id: 'stop-when-empty', type: 'checkbox', onchange: setStopWhenEmpty, checked: stopWhenEmpty }),
       m('label', { for: 'stop-when-empty' }, 'Stop When Empty'),
 
       m('input', { id: 'requeue-when-blocked', type: 'checkbox', onchange: setRequeueWhenBlocked }),
