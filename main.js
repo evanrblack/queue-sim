@@ -11,7 +11,7 @@ let running = false;
 let stopWhenEmpty = true;
 let requeueWhenBlocked = false;
 let requeueWithDelay = false;
-let randomDelay = false;
+let useRandomDelay = false;
 
 let chartData = [[0], [0], [0]];
 let chartElem;
@@ -222,7 +222,7 @@ function tick() {
       worker.blocked = false;
       worker.ticks = 0;
       if (requeueWithDelay) {
-        delayedJobs.push({ ticks: randomDelay ? (Math.random() > 0.5 ? 40 : 80) : 10, job: worker.job });
+        delayedJobs.push({ ticks: useRandomDelay ? (Math.random() > 0.5 ? 40 : 80) : 10, job: worker.job });
       } else {
         jobs.push(worker.job);
       }
@@ -296,8 +296,8 @@ function setRequeueWithDelay(event) {
   requeueWithDelay = event.target.checked;
 }
 
-function setRandomDelay(event) {
-  randomDelay = event.target.checked;
+function setUseRandomDelay(event) {
+  useRandomDelay = event.target.checked;
 }
 
 function prepareChart(elem) {
@@ -354,13 +354,13 @@ m.mount(root, {
       m('input', { id: 'stop-when-empty', type: 'checkbox', onchange: setStopWhenEmpty, checked: stopWhenEmpty }),
       m('label', { for: 'stop-when-empty' }, 'Stop When Empty'),
 
-      m('input', { id: 'requeue-when-blocked', type: 'checkbox', onchange: setRequeueWhenBlocked }),
+      m('input', { id: 'requeue-when-blocked', type: 'checkbox', onchange: setRequeueWhenBlocked, checked: requeueWhenBlocked }),
       m('label', { for: 'requeue-when-blocked' }, 'Requeue When Blocked'),
 
-      m('input', { id: 'requeue-with-delay', type: 'checkbox', onchange: setRequeueWithDelay }),
+      m('input', { id: 'requeue-with-delay', type: 'checkbox', onchange: setRequeueWithDelay, checked: requeueWithDelay }),
       m('label', { for: 'requeue-with-delay' }, 'Requeue With Delay'),
 
-      m('input', { id: 'random-delay', type: 'checkbox', onchange: setRandomDelay }),
+      m('input', { id: 'random-delay', type: 'checkbox', onchange: setUseRandomDelay, checked: useRandomDelay }),
       m('label', { for: 'random-delay' }, 'Random Delay'),
 
       m('button', { type: 'button', onclick: stripeJobs }, 'Stripe Jobs'),
