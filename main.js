@@ -139,7 +139,6 @@ function addJobsFromTenant(event) {
   const tenantIndex = tenants.findIndex((t) => t.color === color);
   const currentCount = chartData[tenantIndex + offset][tickCount] ?? 0;
   chartData[tenantIndex + offset][tickCount] = currentCount + count;
-  console.log(chartData);
   chart.setData(chartData);
 }
 
@@ -183,13 +182,15 @@ function shuffleJobs() {
 
 function clearAll() {
   workersRunning = false;
-  jobs = [];
   delayedJobs = [];
+  jobs = [];
   workers.forEach((worker) => {
     worker.blocked = false;
     worker.ticks = 0;
     delete worker.job;
   });
+  chartData.forEach(d => d[tickCount] = 0);
+  chart.setData(chartData);
 }
 
 function tick() {
