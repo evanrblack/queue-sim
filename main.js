@@ -1,12 +1,13 @@
 // TODO: Add and configure failure rate, delay timing, job spawning, dynamic workers
-let tenants = [];
+let tenants = new Map();
 let jobs = [];
 let delayedJobs = [];
 let workers = [];
 let semaphoreSize = 1;
 let tickSize = 50;
 let tickCount = 0;
-let id = 1;
+let tenantIdSeq = 0;
+let jobIdSeq = 0;
 let running = false;
 let stopWhenEmpty = true;
 let requeueWhenBlocked = false;
@@ -22,57 +23,131 @@ const root = document.getElementById('root');
 const TenantComponent = {
   view(vnode) {
     const { tenant } = vnode.attrs;
-    return m('form', { 'data-tenant-form': true, onsubmit: addJobsFromTenant },
-      m('div', { style: `width: 32px; height: 32px; background-color: ${tenant.color};` }),
-      m('input', { name: 'color', type: 'hidden', value: tenant.color }),
-      m('input', { name: 'count', type: 'number', min: 1, max: 100, step: 1, style: 'width: 50px' }),
-      m('input', { type: 'submit', value: 'Add Jobs' }),
+    return m(
+      'form.me-3',
+      { 'data-tenant-form': true, onsubmit: addJobsFromTenant },
+      m(
+        '.input-group',
+        m(
+          'span.input-group-text',
+          { style: `border: 4px solid ${tenant.color}` },
+          `T${tenant.id}`,
+        ),
+        m('input', { name: 'tenant-id', type: 'hidden', value: tenant.id }),
+        m('input.form-control', {
+          name: 'count',
+          type: 'number',
+          min: 1,
+          max: 100,
+          step: 1,
+          style: 'width: 100px',
+        }),
+        m('button.btn.btn-outline-secondary', { type: 'submit' }, '+'),
+      ),
     );
-  }
+  },
 };
 
 const JobComponent = {
   view(vnode) {
     const { job } = vnode.attrs;
+    const color = tenants.get(job.tenantId)?.color ?? '#999999';
     const size = vnode.attrs.size ?? 64;
-    return m('div', { style: `width: ${size}px; height: ${size}px; background-color: ${job.color}; border: 1px solid black; overflow: hidden; position: relative;` },
-      m('div', { style: 'display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: white; background-color: black; position: absolute; top: 0; right: 0; font-size: 12px;' }, job.effort),
+    return m(
+      'div',
+      {
+        style: `width: ${size}px; height: ${size}px; background-color: ${color}; border: 1px solid black; overflow: hidden; position: relative;`,
+      },
+      m(
+        'div',
+        {
+          style:
+            'display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: white; background-color: black; position: absolute; top: 0; right: 0; font-size: 12px;',
+        },
+        job.effort,
+      ),
     );
-  }
+  },
 };
 
 const QueueComponent = {
   view(vnode) {
     const { jobs } = vnode.attrs;
-    return m('div', { style: 'margin-top: 1rem; display: flex; height: 96px; border: 1px solid black;' }, jobs.map(job => m(JobComponent, { job, key: job.id })));
-  }
-};
-
-const DelayQueuesComponent = {
-  view(vnode) {
-    const { delayedJobs } = vnode.attrs;
-    const grouped = [];
-    delayedJobs.forEach(dj => {
-      grouped[dj.ticks] ||= 0;
-      grouped[dj.ticks] += 1;
-    });
-    return m('div', grouped.map((count, index) => {
-      return m('span', { style: 'border: 1px solid black; margin-right: 1rem;' }, index + ': ' + count);
-    }));
-  }
+    const delayCount = delayedJobs.length;
+    const delayAverage = Math.round(
+      delayedJobs.reduce((acc, cur) => acc + cur.ticks, 0) / delayedJobs.length,
+    );
+    return m(
+      '.card.mt-3',
+      m(
+        '.card-header.d-flex',
+        m('.flex-grow-1', 'Jobs'),
+        m(
+          'button.btn.btn-outline-light.btn-sm',
+          { type: 'button', onclick: sortJobs },
+          'Sort Jobs',
+        ),
+        m(
+          'button.btn.btn-outline-light.btn-sm.ms-1',
+          { type: 'button', onclick: stripeJobs },
+          'Stripe Jobs',
+        ),
+        m(
+          'button.btn.btn-outline-light.btn-sm.ms-1',
+          { type: 'button', onclick: shuffleJobs },
+          'Shuffle Jobs',
+        ),
+        m(
+          'button.btn.btn-outline-light.btn-sm.ms-1',
+          { type: 'button', onclick: clearAll },
+          'Clear All',
+        ),
+      ),
+      m(
+        '.card-body',
+        jobs.length === 0 &&
+          m('.text-center', { style: 'height: 64px' }, 'No jobs in the queue.'),
+        m(
+          '.d-flex',
+          jobs.map((job) => m(JobComponent, { job, key: job.id })),
+        ),
+      ),
+      m(
+        '.card-footer',
+        m(
+          '.row',
+          m('.col-2', `Delayed jobs: ${delayCount}`),
+          m(
+            '.col-2',
+            `Cur. avg. delay: ${Number.isNaN(delayAverage) ? '--' : delayAverage}`,
+          ),
+        ),
+      ),
+    );
+  },
 };
 
 const WorkerComponent = {
   view(vnode) {
     const { worker } = vnode.attrs;
     const { job, blocked } = worker;
-    return m('div', { style: `width: 96px; height: 96px; display: flex; justify-content: center; align-items: center; border: 1px solid black; background-color: ${blocked ? '#ffcccc' : job ? '#ccffcc' : ''}` },
-      job && m('div',
-        m('progress', { value: worker.ticks, max: job.effort, style: `width: 64px; height: 8px;` }),
-        m(JobComponent, { job })
-      ),
+    return m(
+      '.card.m-1',
+      {
+        style: `width: 96px; height: 96px; display: flex; justify-content: center; align-items: center; border: 1px solid gray; background-color: ${blocked ? '#ffcccc' : job ? '#ccffcc' : ''}`,
+      },
+      job &&
+        m(
+          'div',
+          m('progress', {
+            value: worker.ticks,
+            max: job.effort,
+            style: `width: 64px; height: 8px;`,
+          }),
+          m(JobComponent, { job }),
+        ),
     );
-  }
+  },
 };
 
 function sample(array) {
@@ -80,11 +155,12 @@ function sample(array) {
 }
 
 function addTenant(color) {
-  color = '#'+(Math.random()*0xFFFFFF<<0).toString(16);
-  tenants.push({ color });
+  const id = (tenantIdSeq++).toString();
+  color = '#' + ((Math.random() * 0xffffff) << 0).toString(16);
+  tenants.set(id, { id, color });
 
   chart.addSeries({
-    label: color,
+    label: id,
     stroke: color,
     width: 1,
   });
@@ -98,25 +174,29 @@ function addWorker() {
   chart.setData(chartData);
 }
 
-function newJob(color) {
-  return { id: id++, color, effort: 20 + Math.ceil(Math.random() * 20) };
+function newJob(tenantId) {
+  return {
+    id: jobIdSeq++,
+    tenantId,
+    effort: 20 + Math.ceil(Math.random() * 20),
+  };
 }
 
 function save() {
   localStorage.saved = JSON.stringify({
     tickCount,
-    tenants,
+    tenants: [...tenants.values()],
     delayedJobs,
     jobs,
     workers,
     chartData,
-  })
+  });
 }
 
 function load() {
   const data = JSON.parse(localStorage.saved ?? '{}');
   tickCount = data.tickCount ?? 0;
-  tenants = data.tenants ?? [];
+  tenants = new Map((data.tenants ?? []).map((t) => [t.id, t]));
   delayedJobs = data.delayedJobs ?? [];
   jobs = data.jobs ?? [];
   workers = data.workers ?? [];
@@ -130,26 +210,30 @@ function addJobsFromTenant(event) {
   event.preventDefault();
   const data = new FormData(event.target);
   const count = parseInt(data.get('count') || '0');
-  const color = data.get('color');
+  const tenantId = data.get('tenant-id');
   for (let i = 0; i < count; i++) {
-    jobs.push(newJob(color));
+    jobs.push(newJob(tenantId));
   }
 
   const offset = 3;
-  const tenantIndex = tenants.findIndex((t) => t.color === color);
+  const tenantIndex = [...tenants.values()].findIndex((t) => t.id == tenantId);
   const currentCount = chartData[tenantIndex + offset][tickCount] ?? 0;
   chartData[tenantIndex + offset][tickCount] = currentCount + count;
   chart.setData(chartData);
 }
 
+function sortJobs() {
+  jobs = jobs.sort((a, b) => a.tenantId - b.tenantId);
+}
+
 function stripeJobs() {
   const map = new Map();
   for (const job of jobs) {
-    let group = map.get(job.color);
+    let group = map.get(job.tenantId);
     if (group) {
       group.push(job);
     } else {
-      map.set(job.color, [job]);
+      map.set(job.tenantId, [job]);
     }
   }
 
@@ -189,7 +273,7 @@ function clearAll() {
     worker.ticks = 0;
     delete worker.job;
   });
-  chartData.forEach(d => d[tickCount] = 0);
+  chartData.forEach((d) => (d[tickCount] = 0));
   chart.setData(chartData);
 }
 
@@ -202,7 +286,7 @@ function tick() {
       jobs.push(delayedJob.job);
     }
   }
-  delayedJobs = delayedJobs.filter(dj => dj.ticks > 0);
+  delayedJobs = delayedJobs.filter((dj) => dj.ticks > 0);
 
   for (const worker of workers) {
     if (!worker.job) {
@@ -216,13 +300,19 @@ function tick() {
     }
 
     const blockedBefore = worker.blocked;
-    const otherCount = workers.filter(w => w !== worker && !w.blocked && w.job?.color === worker.job.color).length;
+    const otherCount = workers.filter(
+      (w) =>
+        w !== worker && !w.blocked && w.job?.tenantId === worker.job.tenantId,
+    ).length;
     worker.blocked = otherCount >= semaphoreSize;
     if (worker.blocked && blockedBefore && requeueWhenBlocked) {
       worker.blocked = false;
       worker.ticks = 0;
       if (requeueWithDelay) {
-        delayedJobs.push({ ticks: useRandomDelay ? (Math.random() > 0.5 ? 40 : 80) : 10, job: worker.job });
+        delayedJobs.push({
+          ticks: useRandomDelay ? (Math.random() > 0.5 ? 80 : 160) : 10,
+          job: worker.job,
+        });
       } else {
         jobs.push(worker.job);
       }
@@ -238,34 +328,40 @@ function tick() {
     }
   }
 
-  const counts = new Map(tenants.map(tenant => [tenant.color, 0]));
-  const increment = (color) => counts.set(color, counts.get(color) + 1);
+  const tenantsArray = [...tenants.values()];
+  const counts = new Map(tenantsArray.map((tenant) => [tenant.id, 0]));
+  const increment = (tenantId) =>
+    counts.set(tenantId, counts.get(tenantId) + 1);
   for (const delayedJob of delayedJobs) {
-    increment(delayedJob.job.color);
+    increment(delayedJob.job.tenantId);
   }
   for (const job of jobs) {
-    increment(job.color);
+    increment(job.tenantId);
   }
   for (const worker of workers) {
     if (worker.job) {
-      increment(worker.job.color);
+      increment(worker.job.tenantId);
     }
   }
 
   chartData[0].push(tickCount);
   chartData[1].push(workers.length);
-  chartData[2].push(workers.filter(w => !w.blocked && w.job).length);
+  chartData[2].push(workers.filter((w) => !w.blocked && w.job).length);
+  let index = 0;
   const offset = 3;
-  for (let i = 0; i < tenants.length; i++) {
-    const tenant = tenants[i];
-    const data = chartData[i + offset];
-    data.push(counts.get(tenant.color));
+  for (const [id, _] of tenants) {
+    const data = chartData[index++ + offset];
+    data.push(counts.get(id));
   }
   chart.setData(chartData);
 }
 
 function isEmpty() {
-  return delayedJobs.length === 0 && jobs.length === 0 && workers.filter(w => w.job).length === 0;
+  return (
+    delayedJobs.length === 0 &&
+    jobs.length === 0 &&
+    workers.filter((w) => w.job).length === 0
+  );
 }
 
 let intervalId;
@@ -301,78 +397,226 @@ function setUseRandomDelay(event) {
 }
 
 function prepareChart(elem) {
-  chart = new uPlot({
-    title: 'Jobs',
-    height: 400,
-    width: 800,
-    series: [
-      {},
-      {label: 'Workers', dash: [10, 5], stroke: 'gray', fill: 'rgba(100, 100, 100, 0.3)', },
-      {label: 'Working', dash: [5, 2], stroke: 'green', fill: 'rgba(0, 255, 0, 0.3)'},
-      ...tenants.map(tenant => ({
-        label: tenant.color,
-        stroke: tenant.color,
-        width: 1,
-      })),
-    ],
-    axes: [
-      {
-        side: 2,
-        label: 'Tick',
+  chart = new uPlot(
+    {
+      height: 300,
+      width: screen.width * 0.7,
+      series: [
+        {},
+        {
+          label: 'Workers',
+          dash: [10, 5],
+          stroke: 'gray',
+          fill: 'rgba(100, 100, 100, 0.3)',
+        },
+        {
+          label: 'Working',
+          dash: [5, 2],
+          stroke: 'green',
+          fill: 'rgba(0, 255, 0, 0.3)',
+        },
+        ...[...tenants.values()].map((tenant) => ({
+          label: tenant.id,
+          stroke: tenant.color,
+          width: 1,
+        })),
+      ],
+      axes: [
+        {
+          side: 2,
+          // label: 'Tick',
+          stroke: 'white',
+          grid: {
+            stroke: '#333',
+          },
+        },
+        {
+          side: 3,
+          // label: 'Jobs',
+          stroke: 'white',
+          grid: {
+            stroke: '#333',
+          },
+        },
+      ],
+      scales: {
+        y: {
+          range: [0, null],
+        },
+        x: {
+          time: false,
+        },
       },
-      {
-        side: 3,
-        label: 'Jobs',
-      },
-    ],
-    scales: {
-      y: {
-        range: [0, null],
-      },
-      x: {
-        time: false,
-      }
     },
-  }, chartData, elem);
+    chartData,
+    elem,
+  );
 }
 
 m.mount(root, {
   view() {
-    return m('div',
-      m('div', tickCount),
-      m('div',
-        m('input', { type: 'range', min: 10, max: 500, value: tickSize, disabled: intervalId, oninput: (event) => {
-          tickSize = parseInt(event.target.value);
-        }}),
+    return m.fragment(
+      {},
+      m(
+        '.card',
+        m(
+          '.card-header.d-flex',
+          m('.flex-grow-1', 'Tenants'),
+          m(
+            'button.btn.btn-outline-light.btn-sm',
+            { type: 'button', onclick: addTenant },
+            'Add Tenant',
+          ),
+        ),
+        m(
+          '.card-body',
+          tenants.size === 0 && m('.text-center', 'No tenants added.'),
+          m(
+            '.d-flex.flex-wrap',
+            [...tenants.values()].map((tenant) =>
+              m(TenantComponent, { tenant }),
+            ),
+          ),
+        ),
       ),
-      m('button', { type: 'button', onclick: addTenant }, 'Add Tenant'),
-      m('button', { type: 'button', onclick: addWorker }, 'Add Worker'),
-      !intervalId
-        ? m('button', { type: 'button', onclick: startSim }, 'Start Sim')
-        : m('button', { type: 'button', onclick: pauseSim }, 'Pause Sim'),
-
-      m('input', { id: 'stop-when-empty', type: 'checkbox', onchange: setStopWhenEmpty, checked: stopWhenEmpty }),
-      m('label', { for: 'stop-when-empty' }, 'Stop When Empty'),
-
-      m('input', { id: 'requeue-when-blocked', type: 'checkbox', onchange: setRequeueWhenBlocked, checked: requeueWhenBlocked }),
-      m('label', { for: 'requeue-when-blocked' }, 'Requeue When Blocked'),
-
-      m('input', { id: 'requeue-with-delay', type: 'checkbox', onchange: setRequeueWithDelay, checked: requeueWithDelay }),
-      m('label', { for: 'requeue-with-delay' }, 'Requeue With Delay'),
-
-      m('input', { id: 'random-delay', type: 'checkbox', onchange: setUseRandomDelay, checked: useRandomDelay }),
-      m('label', { for: 'random-delay' }, 'Random Delay'),
-
-      m('button', { type: 'button', onclick: stripeJobs }, 'Stripe Jobs'),
-      m('button', { type: 'button', onclick: shuffleJobs }, 'Shuffle Jobs'),
-      m('button', { type: 'button', onclick: clearAll }, 'Clear All'),
-      m('button', { type: 'button', onclick: save }, 'Save'),
-      m('button', { type: 'button', onclick: load }, 'Load'),
-      m('div', { style: 'margin-top: 1rem; display: flex; height: 64px;' }, tenants.map(tenant => m(TenantComponent, { tenant }))),
-      m(DelayQueuesComponent, { delayedJobs }),
       m(QueueComponent, { jobs }),
-      m('div', { style: 'margin-top: 1rem; display: flex;' }, workers.map(worker => m(WorkerComponent, { worker }))),
-      m('#chart', { oncreate: (vnode) => prepareChart(vnode.dom) }),
+      m(
+        '.card.mt-3',
+        m(
+          '.card-header.d-flex',
+          m('.flex-grow-1', 'Workers'),
+          m(
+            'button.btn.btn-outline-light.btn-sm',
+            { type: 'button', onclick: addWorker },
+            'Add Worker',
+          ),
+        ),
+        m(
+          '.card-body',
+          workers.length === 0 && m('.text-center', 'No workers added.'),
+          m(
+            '.d-flex.flex-wrap',
+            workers.map((worker) => m(WorkerComponent, { worker })),
+          ),
+        ),
+      ),
+      m(
+        '.card.mt-3',
+        m(
+          '.card-header.d-flex',
+          m('.flex-grow-1', 'Simulation'),
+          m(
+            'div',
+            m(
+              'button.btn.btn-outline-light.btn-sm',
+              { type: 'button', onclick: save },
+              'Save',
+            ),
+            m(
+              'button.btn.btn-outline-light.btn-sm.ms-1',
+              { type: 'button', onclick: load },
+              'Load',
+            ),
+            !intervalId
+              ? m(
+                  'button.btn.btn-primary.btn-sm.ms-1',
+                  { type: 'button', onclick: startSim },
+                  'Start Sim',
+                )
+              : m(
+                  'button.btn.btn-primary.btn-sm.ms-1',
+                  { type: 'button', onclick: pauseSim },
+                  'Pause Sim',
+                ),
+          ),
+        ),
+        m(
+          '.card-body',
+
+          m('#chart', { oncreate: (vnode) => prepareChart(vnode.dom) }),
+          m(
+            '.form-group.w-25',
+            m('label.form-label', { for: 'tick-size' }, 'Tick size'),
+            m('input.form-range', {
+              id: 'tick-size',
+              type: 'range',
+              min: 10,
+              max: 500,
+              value: tickSize,
+              disabled: intervalId,
+              oninput: (event) => {
+                tickSize = parseInt(event.target.value);
+              },
+            }),
+          ),
+          m(
+            'div',
+            m(
+              '.form-check.form-check-inline.form-switch',
+              m('input.form-check-input', {
+                id: 'stop-when-empty',
+                type: 'checkbox',
+                role: 'switch',
+                onchange: setStopWhenEmpty,
+                checked: stopWhenEmpty,
+              }),
+              m(
+                'label.form-check-label',
+                { for: 'stop-when-empty' },
+                'Stop when empty',
+              ),
+            ),
+
+            m(
+              '.form-check.form-check-inline.form-switch',
+              m('input.form-check-input', {
+                id: 'requeue-when-blocked',
+                type: 'checkbox',
+                role: 'switch',
+                onchange: setRequeueWhenBlocked,
+                checked: requeueWhenBlocked,
+              }),
+              m(
+                'label.form-check-label',
+                { for: 'requeue-when-blocked' },
+                'Requeue when blocked',
+              ),
+            ),
+
+            m(
+              '.form-check.form-check-inline.form-switch',
+              m('input.form-check-input', {
+                id: 'requeue-with-delay',
+                type: 'checkbox',
+                role: 'switch',
+                onchange: setRequeueWithDelay,
+                checked: requeueWithDelay,
+              }),
+              m(
+                'label.form-check-label',
+                { for: 'requeue-with-delay' },
+                'Requeue with delay',
+              ),
+            ),
+
+            m(
+              '.form-check.form-check-inline.form-switch',
+              m('input.form-check-input', {
+                id: 'random-delay',
+                type: 'checkbox',
+                role: 'switch',
+                onchange: setUseRandomDelay,
+                checked: useRandomDelay,
+              }),
+              m(
+                'label.form-check-label',
+                { for: 'random-delay' },
+                'Random delay',
+              ),
+            ),
+          ),
+        ),
+      ),
     );
-  }
+  },
 });
