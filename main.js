@@ -18,41 +18,41 @@ let chartData = [[0], [0], [0], [0]];
 let chartElem;
 let chart;
 
-const root = document.getElementById("root");
+const root = document.getElementById('root');
 
 const TenantComponent = {
   view(vnode) {
     const { tenant } = vnode.attrs;
     return m(
-      "form.me-3.mb-3",
-      { "data-tenant-form": true, onsubmit: addJobsFromTenant },
+      'form.me-3.mb-3',
+      { 'data-tenant-form': true, onsubmit: addJobsFromTenant },
       m(
-        ".input-group",
+        '.input-group',
         m(
-          "span.input-group-text",
+          'span.input-group-text',
           { style: `border: 4px solid ${tenant.color}` },
           `T${tenant.id}`,
         ),
-        m("input", { name: "tenant-id", type: "hidden", value: tenant.id }),
-        m("span.input-group-text", "Count:"),
-        m("input.form-control", {
-          name: "count",
-          type: "number",
+        m('input', { name: 'tenant-id', type: 'hidden', value: tenant.id }),
+        m('span.input-group-text', 'Count:'),
+        m('input.form-control', {
+          name: 'count',
+          type: 'number',
           min: 1,
           max: 100,
           step: 1,
-          style: "width: 100px",
+          style: 'width: 100px',
         }),
-        m("span.input-group-text", "Priority:"),
-        m("input.form-control", {
-          name: "priority",
-          type: "number",
+        m('span.input-group-text', 'Priority:'),
+        m('input.form-control', {
+          name: 'priority',
+          type: 'number',
           min: 0,
           max: 255,
           step: 1,
-          style: "width: 100px",
+          style: 'width: 100px',
         }),
-        m("button.btn.btn-outline-secondary", { type: "submit" }, "+"),
+        m('button.btn.btn-outline-secondary', { type: 'submit' }, '+'),
       ),
     );
   },
@@ -61,26 +61,26 @@ const TenantComponent = {
 const JobComponent = {
   view(vnode) {
     const { job } = vnode.attrs;
-    const color = tenants.get(job.tenantId)?.color ?? "#999999";
+    const color = tenants.get(job.tenantId)?.color ?? '#999999';
     const size = vnode.attrs.size ?? 64;
     return m(
-      "div",
+      'div',
       {
         style: `width: ${size}px; height: ${size}px; background-color: ${color}; border: 1px solid black; overflow: hidden; position: relative;`,
       },
       m(
-        "div",
+        'div',
         {
           style:
-            "display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: white; background-color: black; position: absolute; top: 0; right: 0; font-size: 12px;",
+            'display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: white; background-color: black; position: absolute; top: 0; right: 0; font-size: 12px;',
         },
         job.effort,
       ),
       m(
-        "div",
+        'div',
         {
           style:
-            "display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: black; background-color: white; position: absolute; top: 16px; right: 0; font-size: 12px;",
+            'display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: black; background-color: white; position: absolute; top: 16px; right: 0; font-size: 12px;',
         },
         job.priority,
       ),
@@ -96,48 +96,48 @@ const QueueComponent = {
       delayedJobs.reduce((acc, cur) => acc + cur.ticks, 0) / delayedJobs.length,
     );
     return m(
-      ".card.mt-3",
+      '.card.mt-3',
       m(
-        ".card-header.d-flex",
-        m(".flex-grow-1", "Jobs"),
+        '.card-header.d-flex',
+        m('.flex-grow-1', 'Jobs'),
         m(
-          "button.btn.btn-outline-light.btn-sm",
-          { type: "button", onclick: sortJobsByTenant },
-          "Sort Jobs",
+          'button.btn.btn-outline-light.btn-sm',
+          { type: 'button', onclick: sortJobsByTenant },
+          'Sort Jobs',
         ),
         m(
-          "button.btn.btn-outline-light.btn-sm.ms-1",
-          { type: "button", onclick: stripeJobs },
-          "Stripe Jobs",
+          'button.btn.btn-outline-light.btn-sm.ms-1',
+          { type: 'button', onclick: stripeJobs },
+          'Stripe Jobs',
         ),
         m(
-          "button.btn.btn-outline-light.btn-sm.ms-1",
-          { type: "button", onclick: shuffleJobs },
-          "Shuffle Jobs",
+          'button.btn.btn-outline-light.btn-sm.ms-1',
+          { type: 'button', onclick: shuffleJobs },
+          'Shuffle Jobs',
         ),
         m(
-          "button.btn.btn-outline-light.btn-sm.ms-1",
-          { type: "button", onclick: clearAll },
-          "Clear All",
+          'button.btn.btn-outline-light.btn-sm.ms-1',
+          { type: 'button', onclick: clearAll },
+          'Clear All',
         ),
       ),
       m(
-        ".card-body",
+        '.card-body',
         jobs.length === 0 &&
-          m(".text-center", { style: "height: 64px" }, "No jobs in the queue."),
+          m('.text-center', { style: 'height: 64px' }, 'No jobs in the queue.'),
         m(
-          ".d-flex",
+          '.d-flex',
           jobs.map((job) => m(JobComponent, { job, key: job.id })),
         ),
       ),
       m(
-        ".card-footer",
+        '.card-footer',
         m(
-          ".row",
-          m(".col-2", `Delayed jobs: ${delayCount}`),
+          '.row',
+          m('.col-2', `Delayed jobs: ${delayCount}`),
           m(
-            ".col-2",
-            `Cur. avg. delay: ${Number.isNaN(delayAverage) ? "--" : delayAverage}`,
+            '.col-2',
+            `Cur. avg. delay: ${Number.isNaN(delayAverage) ? '--' : delayAverage}`,
           ),
         ),
       ),
@@ -150,14 +150,14 @@ const WorkerComponent = {
     const { worker } = vnode.attrs;
     const { job, blocked } = worker;
     return m(
-      ".card.m-1",
+      '.card.m-1',
       {
-        style: `width: 96px; height: 96px; display: flex; justify-content: center; align-items: center; border: 1px solid gray; background-color: ${blocked ? "#ffcccc" : job ? "#ccffcc" : ""}`,
+        style: `width: 96px; height: 96px; display: flex; justify-content: center; align-items: center; border: 1px solid gray; background-color: ${blocked ? '#ffcccc' : job ? '#ccffcc' : ''}`,
       },
       job &&
         m(
-          "div",
-          m("progress", {
+          'div',
+          m('progress', {
             value: worker.ticks,
             max: job.effort,
             style: `width: 64px; height: 8px;`,
@@ -174,7 +174,7 @@ function sample(array) {
 
 function addTenant(color) {
   const id = (tenantIdSeq++).toString();
-  color = "#" + ((Math.random() * 0xffffff) << 0).toString(16);
+  color = '#' + ((Math.random() * 0xffffff) << 0).toString(16);
   tenants.set(id, { id, color });
 
   chart.addSeries({
@@ -213,7 +213,7 @@ function save() {
 }
 
 function load() {
-  const data = JSON.parse(localStorage.saved ?? "{}");
+  const data = JSON.parse(localStorage.saved ?? '{}');
   tickCount = data.tickCount ?? 0;
   tenants = new Map((data.tenants ?? []).map((t) => [t.id, t]));
   delayedJobs = data.delayedJobs ?? [];
@@ -222,7 +222,7 @@ function load() {
   chartData = data.chartData ?? [[0], [0], [0], [0]];
 
   chart.destroy();
-  prepareChart(document.getElementById("chart"));
+  prepareChart(document.getElementById('chart'));
 }
 
 function sortJobsByTenant() {
@@ -233,9 +233,9 @@ function sortJobsByTenant() {
 function addJobsFromTenant(event) {
   event.preventDefault();
   const data = new FormData(event.target);
-  const count = parseInt(data.get("count") || "0");
-  const priority = parseInt(data.get("priority") || "0");
-  const tenantId = data.get("tenant-id");
+  const count = parseInt(data.get('count') || '0');
+  const priority = parseInt(data.get('priority') || '0');
+  const tenantId = data.get('tenant-id');
   for (let i = 0; i < count; i++) {
     jobs.push(newJob(tenantId, priority));
   }
@@ -463,21 +463,21 @@ function prepareChart(elem) {
       series: [
         {},
         {
-          label: "Workers",
+          label: 'Workers',
           dash: [10, 5],
-          stroke: "gray",
-          fill: "rgba(100, 100, 100, 0.3)",
+          stroke: 'gray',
+          fill: 'rgba(100, 100, 100, 0.3)',
         },
         {
-          label: "Working",
+          label: 'Working',
           dash: [5, 2],
-          stroke: "green",
-          fill: "rgba(0, 255, 0, 0.3)",
+          stroke: 'green',
+          fill: 'rgba(0, 255, 0, 0.3)',
         },
         {
-          label: "Delayed",
+          label: 'Delayed',
           dash: [7, 3],
-          stroke: "white",
+          stroke: 'white',
         },
         ...[...tenants.values()].map((tenant) => ({
           label: tenant.id,
@@ -489,17 +489,17 @@ function prepareChart(elem) {
         {
           side: 2,
           // label: 'Tick',
-          stroke: "white",
+          stroke: 'white',
           grid: {
-            stroke: "#333",
+            stroke: '#333',
           },
         },
         {
           side: 3,
           // label: 'Jobs',
-          stroke: "white",
+          stroke: 'white',
           grid: {
-            stroke: "#333",
+            stroke: '#333',
           },
         },
       ],
@@ -522,21 +522,21 @@ m.mount(root, {
     return m.fragment(
       {},
       m(
-        ".card",
+        '.card',
         m(
-          ".card-header.d-flex",
-          m(".flex-grow-1", "Tenants"),
+          '.card-header.d-flex',
+          m('.flex-grow-1', 'Tenants'),
           m(
-            "button.btn.btn-outline-light.btn-sm",
-            { type: "button", onclick: addTenant },
-            "Add Tenant",
+            'button.btn.btn-outline-light.btn-sm',
+            { type: 'button', onclick: addTenant },
+            'Add Tenant',
           ),
         ),
         m(
-          ".card-body",
-          tenants.size === 0 && m(".text-center", "No tenants added."),
+          '.card-body',
+          tenants.size === 0 && m('.text-center', 'No tenants added.'),
           m(
-            ".d-flex.flex-wrap",
+            '.d-flex.flex-wrap',
             [...tenants.values()].map((tenant) =>
               m(TenantComponent, { tenant }),
             ),
@@ -545,88 +545,92 @@ m.mount(root, {
       ),
       m(QueueComponent, { jobs }),
       m(
-        ".card.mt-3",
+        '.card.mt-3',
         m(
-          ".card-header.d-flex",
-          m(".flex-grow-1", "Workers"),
+          '.card-header.d-flex',
+          m('.flex-grow-1', 'Workers'),
           m(
-            "button.btn.btn-outline-light.btn-sm",
-            { type: "button", onclick: addWorker },
-            "Add Worker",
+            'button.btn.btn-outline-light.btn-sm',
+            { type: 'button', onclick: addWorker },
+            'Add Worker',
           ),
         ),
         m(
-          ".card-body",
-          workers.length === 0 && m(".text-center", "No workers added."),
+          '.card-body',
+          workers.length === 0 && m('.text-center', 'No workers added.'),
           m(
-            ".d-flex.flex-wrap",
+            '.d-flex.flex-wrap',
             workers.map((worker) => m(WorkerComponent, { worker })),
           ),
         ),
       ),
       m(
-        ".card.mt-3",
+        '.card.mt-3',
         m(
-          ".card-header.d-flex",
-          m(".flex-grow-1", "Simulation"),
+          '.card-header.d-flex',
+          m('.flex-grow-1', 'Simulation'),
           m(
-            "div",
+            'div',
             m(
-              "button.btn.btn-outline-light.btn-sm",
-              { type: "button", onclick: save },
-              "Save",
+              'button.btn.btn-outline-light.btn-sm',
+              { type: 'button', onclick: save },
+              'Save',
             ),
             m(
-              "button.btn.btn-outline-light.btn-sm.ms-1",
-              { type: "button", onclick: load },
-              "Load",
+              'button.btn.btn-outline-light.btn-sm.ms-1',
+              { type: 'button', onclick: load },
+              'Load',
             ),
             !intervalId
               ? m(
-                  "button.btn.btn-primary.btn-sm.ms-1",
-                  { type: "button", onclick: startSim },
-                  "Start Sim",
+                  'button.btn.btn-primary.btn-sm.ms-1',
+                  { type: 'button', onclick: startSim },
+                  'Start Sim',
                 )
               : m(
-                  "button.btn.btn-primary.btn-sm.ms-1",
-                  { type: "button", onclick: pauseSim },
-                  "Pause Sim",
+                  'button.btn.btn-primary.btn-sm.ms-1',
+                  { type: 'button', onclick: pauseSim },
+                  'Pause Sim',
                 ),
           ),
         ),
         m(
-          ".card-body",
-          m("#chart", { oncreate: (vnode) => prepareChart(vnode.dom) }),
+          '.card-body',
+          m('#chart', { oncreate: (vnode) => prepareChart(vnode.dom) }),
           m(
-            ".row.mt-3",
+            '.row.mt-3',
             m(
-              ".col.col-3",
+              '.col.col-3',
               m(
-                ".card",
+                '.card',
                 m(
-                  ".card-body",
+                  '.card-body',
                   m(
-                    ".form-check.form-check-inline.form-switch",
-                    m("input.form-check-input", {
-                      id: "stop-when-empty",
-                      type: "checkbox",
-                      role: "switch",
+                    '.form-check.form-check-inline.form-switch',
+                    m('input.form-check-input', {
+                      id: 'stop-when-empty',
+                      type: 'checkbox',
+                      role: 'switch',
                       onchange: setStopWhenEmpty,
                       checked: stopWhenEmpty,
                     }),
                     m(
-                      "label.form-check-label",
-                      { for: "stop-when-empty" },
-                      "Stop when empty",
+                      'label.form-check-label',
+                      { for: 'stop-when-empty' },
+                      'Stop when empty',
                     ),
                   ),
-                  m("hr"),
+                  m('hr'),
                   m(
-                    ".form-group",
-                    m("label.form-label", { for: "tick-size" }, "Tick size"),
-                    m("input.form-range", {
-                      id: "tick-size",
-                      type: "range",
+                    '.form-group',
+                    m(
+                      'label.form-label',
+                      { for: 'tick-size' },
+                      `Tick size: ${tickSize}`,
+                    ),
+                    m('input.form-range', {
+                      id: 'tick-size',
+                      type: 'range',
                       min: 10,
                       max: 500,
                       value: tickSize,
@@ -640,38 +644,38 @@ m.mount(root, {
               ),
             ),
             m(
-              ".col.col-3",
+              '.col.col-3',
               m(
-                ".card",
+                '.card',
                 m(
-                  ".card-body",
+                  '.card-body',
                   m(
-                    ".form-check.form-check-inline.form-switch",
-                    m("input.form-check-input", {
-                      id: "requeue-when-blocked",
-                      type: "checkbox",
-                      role: "switch",
+                    '.form-check.form-check-inline.form-switch',
+                    m('input.form-check-input', {
+                      id: 'requeue-when-blocked',
+                      type: 'checkbox',
+                      role: 'switch',
                       onchange: setRequeueWhenBlocked,
                       checked: requeueWhenBlocked,
                     }),
                     m(
-                      "label.form-check-label",
-                      { for: "requeue-when-blocked" },
-                      "Requeue when blocked",
+                      'label.form-check-label',
+                      { for: 'requeue-when-blocked' },
+                      'Requeue when blocked',
                     ),
                   ),
-                  m("hr"),
+                  m('hr'),
 
                   m(
-                    ".form-group",
+                    '.form-group',
                     m(
-                      "label.form-label",
-                      { for: "requeue-delay" },
-                      "Requeue delay",
+                      'label.form-label',
+                      { for: 'requeue-delay' },
+                      `Requeue delay: ${requeueDelay}`,
                     ),
-                    m("input.form-range", {
-                      id: "requeue-delay",
-                      type: "range",
+                    m('input.form-range', {
+                      id: 'requeue-delay',
+                      type: 'range',
                       min: 0,
                       max: 100,
                       value: requeueDelay,
@@ -680,15 +684,15 @@ m.mount(root, {
                   ),
 
                   m(
-                    ".form-group",
+                    '.form-group',
                     m(
-                      "label.form-label",
-                      { for: "requeue-delay-random-factor" },
-                      "Requeue delay random factor",
+                      'label.form-label',
+                      { for: 'requeue-delay-random-factor' },
+                      `Requeue delay random factor: ${requeueDelayRandomFactor}`,
                     ),
-                    m("input.form-range", {
-                      id: "requeue-delay-random-factor",
-                      type: "range",
+                    m('input.form-range', {
+                      id: 'requeue-delay-random-factor',
+                      type: 'range',
                       min: 0,
                       max: 0.9,
                       step: 0.1,
