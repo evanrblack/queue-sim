@@ -11,38 +11,48 @@ let jobIdSeq = 0;
 let running = false;
 let stopWhenEmpty = true;
 let requeueWhenBlocked = false;
-let requeueWithDelay = false;
-let useRandomDelay = false;
+let requeueDelay = 0;
+let requeueDelayRandomFactor = 0;
 
-let chartData = [[0], [0], [0]];
+let chartData = [[0], [0], [0], [0]];
 let chartElem;
 let chart;
 
-const root = document.getElementById('root');
+const root = document.getElementById("root");
 
 const TenantComponent = {
   view(vnode) {
     const { tenant } = vnode.attrs;
     return m(
-      'form.me-3',
-      { 'data-tenant-form': true, onsubmit: addJobsFromTenant },
+      "form.me-3.mb-3",
+      { "data-tenant-form": true, onsubmit: addJobsFromTenant },
       m(
-        '.input-group',
+        ".input-group",
         m(
-          'span.input-group-text',
+          "span.input-group-text",
           { style: `border: 4px solid ${tenant.color}` },
           `T${tenant.id}`,
         ),
-        m('input', { name: 'tenant-id', type: 'hidden', value: tenant.id }),
-        m('input.form-control', {
-          name: 'count',
-          type: 'number',
+        m("input", { name: "tenant-id", type: "hidden", value: tenant.id }),
+        m("span.input-group-text", "Count:"),
+        m("input.form-control", {
+          name: "count",
+          type: "number",
           min: 1,
           max: 100,
           step: 1,
-          style: 'width: 100px',
+          style: "width: 100px",
         }),
-        m('button.btn.btn-outline-secondary', { type: 'submit' }, '+'),
+        m("span.input-group-text", "Priority:"),
+        m("input.form-control", {
+          name: "priority",
+          type: "number",
+          min: 0,
+          max: 255,
+          step: 1,
+          style: "width: 100px",
+        }),
+        m("button.btn.btn-outline-secondary", { type: "submit" }, "+"),
       ),
     );
   },
@@ -51,20 +61,28 @@ const TenantComponent = {
 const JobComponent = {
   view(vnode) {
     const { job } = vnode.attrs;
-    const color = tenants.get(job.tenantId)?.color ?? '#999999';
+    const color = tenants.get(job.tenantId)?.color ?? "#999999";
     const size = vnode.attrs.size ?? 64;
     return m(
-      'div',
+      "div",
       {
         style: `width: ${size}px; height: ${size}px; background-color: ${color}; border: 1px solid black; overflow: hidden; position: relative;`,
       },
       m(
-        'div',
+        "div",
         {
           style:
-            'display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: white; background-color: black; position: absolute; top: 0; right: 0; font-size: 12px;',
+            "display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: white; background-color: black; position: absolute; top: 0; right: 0; font-size: 12px;",
         },
         job.effort,
+      ),
+      m(
+        "div",
+        {
+          style:
+            "display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; color: black; background-color: white; position: absolute; top: 16px; right: 0; font-size: 12px;",
+        },
+        job.priority,
       ),
     );
   },
@@ -78,48 +96,48 @@ const QueueComponent = {
       delayedJobs.reduce((acc, cur) => acc + cur.ticks, 0) / delayedJobs.length,
     );
     return m(
-      '.card.mt-3',
+      ".card.mt-3",
       m(
-        '.card-header.d-flex',
-        m('.flex-grow-1', 'Jobs'),
+        ".card-header.d-flex",
+        m(".flex-grow-1", "Jobs"),
         m(
-          'button.btn.btn-outline-light.btn-sm',
-          { type: 'button', onclick: sortJobs },
-          'Sort Jobs',
+          "button.btn.btn-outline-light.btn-sm",
+          { type: "button", onclick: sortJobsByTenant },
+          "Sort Jobs",
         ),
         m(
-          'button.btn.btn-outline-light.btn-sm.ms-1',
-          { type: 'button', onclick: stripeJobs },
-          'Stripe Jobs',
+          "button.btn.btn-outline-light.btn-sm.ms-1",
+          { type: "button", onclick: stripeJobs },
+          "Stripe Jobs",
         ),
         m(
-          'button.btn.btn-outline-light.btn-sm.ms-1',
-          { type: 'button', onclick: shuffleJobs },
-          'Shuffle Jobs',
+          "button.btn.btn-outline-light.btn-sm.ms-1",
+          { type: "button", onclick: shuffleJobs },
+          "Shuffle Jobs",
         ),
         m(
-          'button.btn.btn-outline-light.btn-sm.ms-1',
-          { type: 'button', onclick: clearAll },
-          'Clear All',
+          "button.btn.btn-outline-light.btn-sm.ms-1",
+          { type: "button", onclick: clearAll },
+          "Clear All",
         ),
       ),
       m(
-        '.card-body',
+        ".card-body",
         jobs.length === 0 &&
-          m('.text-center', { style: 'height: 64px' }, 'No jobs in the queue.'),
+          m(".text-center", { style: "height: 64px" }, "No jobs in the queue."),
         m(
-          '.d-flex',
+          ".d-flex",
           jobs.map((job) => m(JobComponent, { job, key: job.id })),
         ),
       ),
       m(
-        '.card-footer',
+        ".card-footer",
         m(
-          '.row',
-          m('.col-2', `Delayed jobs: ${delayCount}`),
+          ".row",
+          m(".col-2", `Delayed jobs: ${delayCount}`),
           m(
-            '.col-2',
-            `Cur. avg. delay: ${Number.isNaN(delayAverage) ? '--' : delayAverage}`,
+            ".col-2",
+            `Cur. avg. delay: ${Number.isNaN(delayAverage) ? "--" : delayAverage}`,
           ),
         ),
       ),
@@ -132,14 +150,14 @@ const WorkerComponent = {
     const { worker } = vnode.attrs;
     const { job, blocked } = worker;
     return m(
-      '.card.m-1',
+      ".card.m-1",
       {
-        style: `width: 96px; height: 96px; display: flex; justify-content: center; align-items: center; border: 1px solid gray; background-color: ${blocked ? '#ffcccc' : job ? '#ccffcc' : ''}`,
+        style: `width: 96px; height: 96px; display: flex; justify-content: center; align-items: center; border: 1px solid gray; background-color: ${blocked ? "#ffcccc" : job ? "#ccffcc" : ""}`,
       },
       job &&
         m(
-          'div',
-          m('progress', {
+          "div",
+          m("progress", {
             value: worker.ticks,
             max: job.effort,
             style: `width: 64px; height: 8px;`,
@@ -156,7 +174,7 @@ function sample(array) {
 
 function addTenant(color) {
   const id = (tenantIdSeq++).toString();
-  color = '#' + ((Math.random() * 0xffffff) << 0).toString(16);
+  color = "#" + ((Math.random() * 0xffffff) << 0).toString(16);
   tenants.set(id, { id, color });
 
   chart.addSeries({
@@ -174,11 +192,12 @@ function addWorker() {
   chart.setData(chartData);
 }
 
-function newJob(tenantId) {
+function newJob(tenantId, priority = 1) {
   return {
     id: jobIdSeq++,
     tenantId,
     effort: 20 + Math.ceil(Math.random() * 20),
+    priority,
   };
 }
 
@@ -194,36 +213,40 @@ function save() {
 }
 
 function load() {
-  const data = JSON.parse(localStorage.saved ?? '{}');
+  const data = JSON.parse(localStorage.saved ?? "{}");
   tickCount = data.tickCount ?? 0;
   tenants = new Map((data.tenants ?? []).map((t) => [t.id, t]));
   delayedJobs = data.delayedJobs ?? [];
   jobs = data.jobs ?? [];
   workers = data.workers ?? [];
-  chartData = data.chartData ?? [[0], [0], [0]];
+  chartData = data.chartData ?? [[0], [0], [0], [0]];
 
   chart.destroy();
-  prepareChart(document.getElementById('chart'));
+  prepareChart(document.getElementById("chart"));
+}
+
+function sortJobsByTenant() {
+  jobs = jobs.sort((a, b) => a.tenantId - b.tenantId);
+  sortJobsByPriority();
 }
 
 function addJobsFromTenant(event) {
   event.preventDefault();
   const data = new FormData(event.target);
-  const count = parseInt(data.get('count') || '0');
-  const tenantId = data.get('tenant-id');
+  const count = parseInt(data.get("count") || "0");
+  const priority = parseInt(data.get("priority") || "0");
+  const tenantId = data.get("tenant-id");
   for (let i = 0; i < count; i++) {
-    jobs.push(newJob(tenantId));
+    jobs.push(newJob(tenantId, priority));
   }
 
-  const offset = 3;
+  sortJobsByPriority();
+
+  const offset = 4;
   const tenantIndex = [...tenants.values()].findIndex((t) => t.id == tenantId);
   const currentCount = chartData[tenantIndex + offset][tickCount] ?? 0;
   chartData[tenantIndex + offset][tickCount] = currentCount + count;
   chart.setData(chartData);
-}
-
-function sortJobs() {
-  jobs = jobs.sort((a, b) => a.tenantId - b.tenantId);
 }
 
 function stripeJobs() {
@@ -252,6 +275,8 @@ function stripeJobs() {
       break;
     }
   }
+
+  sortJobsByPriority();
 }
 
 // Fisher-Yates, if I did it right?
@@ -262,6 +287,8 @@ function shuffleJobs() {
     jobs[i] = jobs[j];
     jobs[j] = temp;
   }
+
+  sortJobsByPriority();
 }
 
 function clearAll() {
@@ -275,6 +302,32 @@ function clearAll() {
   });
   chartData.forEach((d) => (d[tickCount] = 0));
   chart.setData(chartData);
+}
+
+// For priority.
+function sortJobsByPriority() {
+  const groups = [];
+  for (const elem of jobs) {
+    const priority = elem.priority ?? 0;
+    if (groups[priority]) {
+      groups[priority].push(elem);
+    } else {
+      groups[priority] = [elem];
+    }
+  }
+
+  const sorted = [];
+  for (let i = groups.length - 1; i >= 0; i--) {
+    const group = groups[i];
+    if (!group) {
+      continue;
+    }
+    for (const item of group) {
+      sorted.push(item);
+    }
+  }
+
+  jobs = sorted;
 }
 
 function tick() {
@@ -308,9 +361,12 @@ function tick() {
     if (worker.blocked && blockedBefore && requeueWhenBlocked) {
       worker.blocked = false;
       worker.ticks = 0;
-      if (requeueWithDelay) {
+      if (requeueDelay) {
         delayedJobs.push({
-          ticks: useRandomDelay ? (Math.random() > 0.5 ? 80 : 160) : 10,
+          ticks: Math.round(
+            requeueDelay +
+              requeueDelay * (1 - Math.random() * 2) * requeueDelayRandomFactor,
+          ),
           job: worker.job,
         });
       } else {
@@ -327,6 +383,8 @@ function tick() {
       }
     }
   }
+
+  sortJobsByPriority();
 
   const tenantsArray = [...tenants.values()];
   const counts = new Map(tenantsArray.map((tenant) => [tenant.id, 0]));
@@ -347,8 +405,9 @@ function tick() {
   chartData[0].push(tickCount);
   chartData[1].push(workers.length);
   chartData[2].push(workers.filter((w) => !w.blocked && w.job).length);
+  chartData[3].push(delayedJobs.length);
   let index = 0;
-  const offset = 3;
+  const offset = 4;
   for (const [id, _] of tenants) {
     const data = chartData[index++ + offset];
     data.push(counts.get(id));
@@ -388,32 +447,37 @@ function setRequeueWhenBlocked(event) {
   requeueWhenBlocked = event.target.checked;
 }
 
-function setRequeueWithDelay(event) {
-  requeueWithDelay = event.target.checked;
+function setRequeueDelay(event) {
+  requeueDelay = parseInt(event.target.value);
 }
 
-function setUseRandomDelay(event) {
-  useRandomDelay = event.target.checked;
+function setRequeueDelayRandomFactor(event) {
+  requeueDelayRandomFactor = event.target.value;
 }
 
 function prepareChart(elem) {
   chart = new uPlot(
     {
       height: 300,
-      width: screen.width * 0.7,
+      width: elem.getBoundingClientRect().width,
       series: [
         {},
         {
-          label: 'Workers',
+          label: "Workers",
           dash: [10, 5],
-          stroke: 'gray',
-          fill: 'rgba(100, 100, 100, 0.3)',
+          stroke: "gray",
+          fill: "rgba(100, 100, 100, 0.3)",
         },
         {
-          label: 'Working',
+          label: "Working",
           dash: [5, 2],
-          stroke: 'green',
-          fill: 'rgba(0, 255, 0, 0.3)',
+          stroke: "green",
+          fill: "rgba(0, 255, 0, 0.3)",
+        },
+        {
+          label: "Delayed",
+          dash: [7, 3],
+          stroke: "white",
         },
         ...[...tenants.values()].map((tenant) => ({
           label: tenant.id,
@@ -425,17 +489,17 @@ function prepareChart(elem) {
         {
           side: 2,
           // label: 'Tick',
-          stroke: 'white',
+          stroke: "white",
           grid: {
-            stroke: '#333',
+            stroke: "#333",
           },
         },
         {
           side: 3,
           // label: 'Jobs',
-          stroke: 'white',
+          stroke: "white",
           grid: {
-            stroke: '#333',
+            stroke: "#333",
           },
         },
       ],
@@ -458,21 +522,21 @@ m.mount(root, {
     return m.fragment(
       {},
       m(
-        '.card',
+        ".card",
         m(
-          '.card-header.d-flex',
-          m('.flex-grow-1', 'Tenants'),
+          ".card-header.d-flex",
+          m(".flex-grow-1", "Tenants"),
           m(
-            'button.btn.btn-outline-light.btn-sm',
-            { type: 'button', onclick: addTenant },
-            'Add Tenant',
+            "button.btn.btn-outline-light.btn-sm",
+            { type: "button", onclick: addTenant },
+            "Add Tenant",
           ),
         ),
         m(
-          '.card-body',
-          tenants.size === 0 && m('.text-center', 'No tenants added.'),
+          ".card-body",
+          tenants.size === 0 && m(".text-center", "No tenants added."),
           m(
-            '.d-flex.flex-wrap',
+            ".d-flex.flex-wrap",
             [...tenants.values()].map((tenant) =>
               m(TenantComponent, { tenant }),
             ),
@@ -481,137 +545,158 @@ m.mount(root, {
       ),
       m(QueueComponent, { jobs }),
       m(
-        '.card.mt-3',
+        ".card.mt-3",
         m(
-          '.card-header.d-flex',
-          m('.flex-grow-1', 'Workers'),
+          ".card-header.d-flex",
+          m(".flex-grow-1", "Workers"),
           m(
-            'button.btn.btn-outline-light.btn-sm',
-            { type: 'button', onclick: addWorker },
-            'Add Worker',
+            "button.btn.btn-outline-light.btn-sm",
+            { type: "button", onclick: addWorker },
+            "Add Worker",
           ),
         ),
         m(
-          '.card-body',
-          workers.length === 0 && m('.text-center', 'No workers added.'),
+          ".card-body",
+          workers.length === 0 && m(".text-center", "No workers added."),
           m(
-            '.d-flex.flex-wrap',
+            ".d-flex.flex-wrap",
             workers.map((worker) => m(WorkerComponent, { worker })),
           ),
         ),
       ),
       m(
-        '.card.mt-3',
+        ".card.mt-3",
         m(
-          '.card-header.d-flex',
-          m('.flex-grow-1', 'Simulation'),
+          ".card-header.d-flex",
+          m(".flex-grow-1", "Simulation"),
           m(
-            'div',
+            "div",
             m(
-              'button.btn.btn-outline-light.btn-sm',
-              { type: 'button', onclick: save },
-              'Save',
+              "button.btn.btn-outline-light.btn-sm",
+              { type: "button", onclick: save },
+              "Save",
             ),
             m(
-              'button.btn.btn-outline-light.btn-sm.ms-1',
-              { type: 'button', onclick: load },
-              'Load',
+              "button.btn.btn-outline-light.btn-sm.ms-1",
+              { type: "button", onclick: load },
+              "Load",
             ),
             !intervalId
               ? m(
-                  'button.btn.btn-primary.btn-sm.ms-1',
-                  { type: 'button', onclick: startSim },
-                  'Start Sim',
+                  "button.btn.btn-primary.btn-sm.ms-1",
+                  { type: "button", onclick: startSim },
+                  "Start Sim",
                 )
               : m(
-                  'button.btn.btn-primary.btn-sm.ms-1',
-                  { type: 'button', onclick: pauseSim },
-                  'Pause Sim',
+                  "button.btn.btn-primary.btn-sm.ms-1",
+                  { type: "button", onclick: pauseSim },
+                  "Pause Sim",
                 ),
           ),
         ),
         m(
-          '.card-body',
-
-          m('#chart', { oncreate: (vnode) => prepareChart(vnode.dom) }),
+          ".card-body",
+          m("#chart", { oncreate: (vnode) => prepareChart(vnode.dom) }),
           m(
-            '.form-group.w-25',
-            m('label.form-label', { for: 'tick-size' }, 'Tick size'),
-            m('input.form-range', {
-              id: 'tick-size',
-              type: 'range',
-              min: 10,
-              max: 500,
-              value: tickSize,
-              disabled: intervalId,
-              oninput: (event) => {
-                tickSize = parseInt(event.target.value);
-              },
-            }),
-          ),
-          m(
-            'div',
+            ".row.mt-3",
             m(
-              '.form-check.form-check-inline.form-switch',
-              m('input.form-check-input', {
-                id: 'stop-when-empty',
-                type: 'checkbox',
-                role: 'switch',
-                onchange: setStopWhenEmpty,
-                checked: stopWhenEmpty,
-              }),
+              ".col.col-3",
               m(
-                'label.form-check-label',
-                { for: 'stop-when-empty' },
-                'Stop when empty',
+                ".card",
+                m(
+                  ".card-body",
+                  m(
+                    ".form-check.form-check-inline.form-switch",
+                    m("input.form-check-input", {
+                      id: "stop-when-empty",
+                      type: "checkbox",
+                      role: "switch",
+                      onchange: setStopWhenEmpty,
+                      checked: stopWhenEmpty,
+                    }),
+                    m(
+                      "label.form-check-label",
+                      { for: "stop-when-empty" },
+                      "Stop when empty",
+                    ),
+                  ),
+                  m("hr"),
+                  m(
+                    ".form-group",
+                    m("label.form-label", { for: "tick-size" }, "Tick size"),
+                    m("input.form-range", {
+                      id: "tick-size",
+                      type: "range",
+                      min: 10,
+                      max: 500,
+                      value: tickSize,
+                      disabled: intervalId,
+                      oninput: (event) => {
+                        tickSize = parseInt(event.target.value);
+                      },
+                    }),
+                  ),
+                ),
               ),
             ),
-
             m(
-              '.form-check.form-check-inline.form-switch',
-              m('input.form-check-input', {
-                id: 'requeue-when-blocked',
-                type: 'checkbox',
-                role: 'switch',
-                onchange: setRequeueWhenBlocked,
-                checked: requeueWhenBlocked,
-              }),
+              ".col.col-3",
               m(
-                'label.form-check-label',
-                { for: 'requeue-when-blocked' },
-                'Requeue when blocked',
-              ),
-            ),
+                ".card",
+                m(
+                  ".card-body",
+                  m(
+                    ".form-check.form-check-inline.form-switch",
+                    m("input.form-check-input", {
+                      id: "requeue-when-blocked",
+                      type: "checkbox",
+                      role: "switch",
+                      onchange: setRequeueWhenBlocked,
+                      checked: requeueWhenBlocked,
+                    }),
+                    m(
+                      "label.form-check-label",
+                      { for: "requeue-when-blocked" },
+                      "Requeue when blocked",
+                    ),
+                  ),
+                  m("hr"),
 
-            m(
-              '.form-check.form-check-inline.form-switch',
-              m('input.form-check-input', {
-                id: 'requeue-with-delay',
-                type: 'checkbox',
-                role: 'switch',
-                onchange: setRequeueWithDelay,
-                checked: requeueWithDelay,
-              }),
-              m(
-                'label.form-check-label',
-                { for: 'requeue-with-delay' },
-                'Requeue with delay',
-              ),
-            ),
+                  m(
+                    ".form-group",
+                    m(
+                      "label.form-label",
+                      { for: "requeue-delay" },
+                      "Requeue delay",
+                    ),
+                    m("input.form-range", {
+                      id: "requeue-delay",
+                      type: "range",
+                      min: 0,
+                      max: 100,
+                      value: requeueDelay,
+                      oninput: setRequeueDelay,
+                    }),
+                  ),
 
-            m(
-              '.form-check.form-check-inline.form-switch',
-              m('input.form-check-input', {
-                id: 'random-delay',
-                type: 'checkbox',
-                role: 'switch',
-                onchange: setUseRandomDelay,
-                checked: useRandomDelay,
-              }),
-              m(
-                'label.form-check-label',
-                { for: 'random-delay' },
-                'Random delay',
+                  m(
+                    ".form-group",
+                    m(
+                      "label.form-label",
+                      { for: "requeue-delay-random-factor" },
+                      "Requeue delay random factor",
+                    ),
+                    m("input.form-range", {
+                      id: "requeue-delay-random-factor",
+                      type: "range",
+                      min: 0,
+                      max: 0.9,
+                      step: 0.1,
+                      value: requeueDelayRandomFactor,
+                      oninput: setRequeueDelayRandomFactor,
+                    }),
+                  ),
+                ),
               ),
             ),
           ),
