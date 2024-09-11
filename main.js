@@ -174,7 +174,7 @@ function sample(array) {
 
 function addTenant(color) {
   const id = (tenantIdSeq++).toString();
-  color = '#' + ((Math.random() * 0xffffff) << 0).toString(16);
+  color = '#' + ((Math.random() * 0xffffff) << 0).toString(16).padEnd(6, '0');
   tenants.set(id, { id, color });
 
   chart.addSeries({
